@@ -2,13 +2,29 @@ import { useState, useRef, useEffect } from 'react';
 import JsBarcode from 'jsbarcode';
 import './App.css';
 
+// Short terms dictionary for instant scanning
+const branchShortCodes = { 
+  "Pasay": "PS", "Cebu": "CB", "Munoz": "MZ", "Fairview": "FV" 
+};
+
+const typeShortCodes = { 
+  "Monitor": "MN", "Keyboard": "KB", "Mouse": "MS", "Ram": "RM", "Heatsink": "HS" 
+};
+
 function App() {
   const [options, setOptions] = useState(() => {
-    const saved = localStorage.getItem('disposal_options');
+    const saved = localStorage.getItem('disposal_options_v2');
     return saved ? JSON.parse(saved) : {
       branches: ["Pasay", "Cebu", "Munoz", "Fairview"],
       types: ["Monitor", "Keyboard", "Mouse", "Ram", "Heatsink"],
-      brands: ["AOC", "Gigabyte"]
+      // Brands are now categorized by Type
+      brandsByType: {
+        "Monitor": ["AOC", "Samsung", "Gigabyte"],
+        "Keyboard": ["Logitech", "Razer"],
+        "Mouse": ["Logitech", "A4Tech"],
+        "Ram": ["Kingston", "Samsung"],
+        "Heatsink": ["DeepCool", "Cooler Master"]
+      }
     };
   });
 
@@ -17,26 +33,52 @@ function App() {
   const barcodeRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem('disposal_options', JSON.stringify(options));
+    localStorage.setItem('disposal_options_v2', JSON.stringify(options));
   }, [options]);
 
   const addNewItem = (category) => {
-    const newItem = prompt(`Enter new ${category}:`);
-    if (newItem && newItem.trim() !== "") {
-      setOptions(prev => ({ ...prev, [category]: [...prev[category], newItem.trim()] }));
+    if (category === 'brands') {
+      if (!formData.type) return alert("Please select a Type first to add a brand to it.");
+      const newItem = prompt(`Enter new Brand for ${formData.type}:`);
+      if (newItem && newItem.trim() !== "") {
+        const type = formData.type;
+        setOptions(prev => ({
+          ...prev,
+          brandsByType: {
+            ...prev.brandsByType,
+            [type]: [...(prev.brandsByType[type] || []), newItem.trim()]
+          }
+        }));
+      }
+    } else {
+      const newItem = prompt(`Enter new ${category}:`);
+      if (newItem && newItem.trim() !== "") {
+        setOptions(prev => ({ ...prev, [category]: [...prev[category], newItem.trim()] }));
+      }
     }
   };
 
   const removeItem = (category, value) => {
     if (!value) return alert("Select an item in the dropdown to remove.");
     if (window.confirm(`Remove "${value}"?`)) {
-      setOptions(prev => ({ ...prev, [category]: prev[category].filter(item => item !== value) }));
-      const field = category === 'branches' ? 'branch' : category.slice(0, -1);
-      setFormData({ ...formData, [field]: '' });
+      if (category === 'brands') {
+        const type = formData.type;
+        setOptions(prev => ({
+          ...prev,
+          brandsByType: {
+            ...prev.brandsByType,
+            [type]: prev.brandsByType[type].filter(item => item !== value)
+          }
+        }));
+        setFormData({ ...formData, brand: '' });
+      } else {
+        setOptions(prev => ({ ...prev, [category]: prev[category].filter(item => item !== value) }));
+        const field = category === 'branches' ? 'branch' : 'type';
+        setFormData({ ...formData, [field]: '' });
+      }
     }
   };
 
-  // Logic to reset the queue
   const handleClearQueue = () => {
     if (printQueue.length === 0) return;
     if (window.confirm("Are you sure you want to clear the entire print queue?")) {
@@ -48,15 +90,18 @@ function App() {
     const { branch, type, brand } = formData;
     if (!branch || !type || !brand) return alert("Please fill all fields!");
 
-    const displayText = `${branch} - ${brand} - ${type}`;
-    const combinedData = displayText.replace(/ - /g, "\t");
+    const sBranch = branchShortCodes[branch] || branch.substring(0, 2).toUpperCase();
+    const sType = typeShortCodes[type] || type.substring(0, 2).toUpperCase();
+
+    const combinedData = `${sBranch}|${sType}|${brand}`;
+    const displayText = `${branch} - ${type} - ${brand}`;
 
     if (barcodeRef.current) {
       barcodeRef.current.innerHTML = "";
       JsBarcode(barcodeRef.current, combinedData, {
         format: "CODE128",
-        width: 1.8,
-        height: 70,
+        width: 2.2,
+        height: 65,
         displayValue: true,
         text: displayText,
         font: "monospace",
@@ -101,51 +146,78 @@ function App() {
   return (
     <div className="main-container">
       <div className="white-card-container">
-
-        {/* LEFT COLUMN */}
+        
         <div className="left-column no-print">
           <div className="brand-section">
             <img className="com-logo" src="/images/logo.png" alt="Company Logo" />
           </div>
 
           <div className="form-content">
-            {[
-              { label: 'Branch', key: 'branch', cat: 'branches' },
-              { label: 'Brand', key: 'brand', cat: 'brands' },
-              { label: 'Type', key: 'type', cat: 'types' }
-            ].map((item) => (
-              <div className="input-group" key={item.key}>
-                <div className="label-row">
-                  <label>{item.label}:</label>
-                  <div className="action-btns">
-                    <button onClick={() => addNewItem(item.cat)}>+</button>
-                    <button onClick={() => removeItem(item.cat, formData[item.key])}>-</button>
-                  </div>
-                </div>
-                <div className="select-wrapper">
-                  <select value={formData[item.key]} onChange={(e) => setFormData({ ...formData, [item.key]: e.target.value })}>
-                    <option value="">Select {item.label}</option>
-                    {options[item.cat].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
+            {/* BRANCH SELECT */}
+            <div className="input-group">
+              <div className="label-row">
+                <label>Branch:</label>
+                <div className="action-btns">
+                  <button onClick={() => addNewItem('branches')}>+</button>
+                  <button onClick={() => removeItem('branches', formData.branch)}>-</button>
                 </div>
               </div>
-            ))}
+              <select value={formData.branch} onChange={(e) => setFormData({ ...formData, branch: e.target.value })}>
+                <option value="">Select Branch</option>
+                {options.branches.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </div>
+
+            {/* TYPE SELECT */}
+            <div className="input-group">
+              <div className="label-row">
+                <label>Type:</label>
+                <div className="action-btns">
+                  <button onClick={() => addNewItem('types')}>+</button>
+                  <button onClick={() => removeItem('types', formData.type)}>-</button>
+                </div>
+              </div>
+              <select 
+                value={formData.type} 
+                onChange={(e) => setFormData({ ...formData, type: e.target.value, brand: '' })}
+              >
+                <option value="">Select Type</option>
+                {options.types.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </div>
+
+            {/* BRAND SELECT (Dependent on Type) */}
+            <div className="input-group">
+              <div className="label-row">
+                <label>Brand:</label>
+                <div className="action-btns">
+                  <button onClick={() => addNewItem('brands')}>+</button>
+                  <button onClick={() => removeItem('brands', formData.brand)}>-</button>
+                </div>
+              </div>
+              <select 
+                value={formData.brand} 
+                disabled={!formData.type}
+                onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+              >
+                <option value="">{formData.type ? `Select ${formData.type} Brand` : 'Select Type First'}</option>
+                {formData.type && (options.brandsByType[formData.type] || []).map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
             <button onClick={handleGenerate} className="btn-main generate">Generate Barcode</button>
             <button onClick={() => setFormData({ branch: '', type: '', brand: '' })} className="reset-link">Reset Form</button>
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
         <div className="right-column">
           <h2 className="preview-title no-print">Print Preview</h2>
-
           <div className="scroll-area">
             <div className="barcode-preview-area single-view no-print">
-              <div className="fixed-wrapper">
-                <svg ref={barcodeRef}></svg>
-              </div>
+              <div className="fixed-wrapper"><svg ref={barcodeRef}></svg></div>
             </div>
-
             <div className="queue-container">
               <h3 className="queue-header no-print">Print Queue</h3>
               <div className="barcode-list-area">
@@ -162,19 +234,13 @@ function App() {
               </div>
             </div>
           </div>
-
-          {/* ADDED CLEAR QUEUE BUTTON HERE */}
-          <button onClick={handleClearQueue} className="reset-link no-print" style={{ marginBottom: '10px' }}>
-            Clear Queue
-          </button>
-
+          <button onClick={handleClearQueue} className="reset-link no-print" style={{ marginBottom: '10px' }}>Clear Queue</button>
           <div className="button-grid no-print">
             <button onClick={() => downloadImage('png')} className="btn-sub secondary">Save PNG</button>
             <button onClick={() => downloadImage('jpeg')} className="btn-sub secondary">Save JPG</button>
             <button onClick={() => window.print()} className="btn-sub print">Print All ({printQueue.length})</button>
           </div>
         </div>
-
       </div>
     </div>
   );

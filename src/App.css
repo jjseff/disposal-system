@@ -238,7 +238,7 @@ body {
   cursor: pointer;
   font-size: 0.8rem;
 }
-/* --- FINAL PRINT TEMPLATE --- */
+
 @media print {
   /* 1. Hide all non-printable elements */
   .no-print, 
@@ -291,7 +291,7 @@ body {
   .barcode-list-area {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 15mm 10mm !important;
+    gap: 4mm 3mm !important;
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
@@ -303,8 +303,8 @@ body {
     justify-content: center !important;
     align-items: center !important;
     border: 1px dashed #cccccc !important;
-    height: 40mm !important;
-    padding: 3mm !important;
+    height: 18mm !important;
+    padding: 1.5mm !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     background: white !important;
@@ -327,7 +327,7 @@ body {
     display: block !important;
     margin: 0 auto !important;
     max-width: 95% !important;
-    max-height: 35mm !important;
+    max-height: 14mm !important;
     height: auto !important;
     width: auto !important;
   }
